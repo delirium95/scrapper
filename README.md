@@ -14,7 +14,7 @@ npm run scrape
 
 Run `npm run typecheck` to check the TypeScript types without generating files.
 
-The output file is overwritten on each run. The script runs Chromium in headless mode and reads product data from the live page. If a field is absent, it writes `null` (or an empty array for list fields).
+The output file is overwritten on each run. The scraper starts in headless Chromium. If MSI responds with HTTP 403, it retries once in a visible Playwright Chromium window. If a field is absent, it writes `null` (or an empty array for list fields).
 
 ## Extraction approach
 
@@ -28,4 +28,4 @@ The scraper does not add a product to the cart or make any other changes to the 
 
 ## Site access note
 
-During development on October 2, 2026, the MSI site returned HTTP 403 to local headless Chromium. The included `output/product.json` is a sample captured from the live product page in a regular browser at that time. The scraper reports the HTTP status immediately if MSI rejects a run; it does not fabricate replacement data. Run `npm run scrape` from a network where the site permits headless browser access to refresh the sample.
+During development on October 2, 2026, MSI's Akamai protection returned HTTP 403 to local headless Chromium but HTTP 200 to visible Playwright Chromium. The fallback lets the three commands above refresh `output/product.json` on a desktop while still trying headless mode first. A machine without a graphical desktop may remain blocked by MSI. The scraper does not fabricate replacement data.

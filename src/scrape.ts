@@ -92,8 +92,10 @@ function uniqueUrls(urls: (string | null)[], baseUrl: string): string[] {
 }
 
 async function readPage(page: Page): Promise<RawPage> {
-  return page.evaluate(() => {
-    const text = (element: Element | null | undefined): string | null => {
+  // Pass browser-side code as a string so tsx does not inject Node-side helpers
+  // (such as __name) into Playwright's isolated page context.
+  return page.evaluate(String.raw`(() => {
+    const text = (element) => {
       const content = element instanceof HTMLElement ? element.innerText : element?.textContent;
       return content?.replace(/\s+/g, ' ').trim() || null;
     };
@@ -104,7 +106,7 @@ async function readPage(page: Page): Promise<RawPage> {
         name: text(item),
         url: item.querySelector('a')?.href || null,
       }))
-      .filter((item): item is CategoryEntry => item.name !== null);
+      .filter((item) => item.name !== null);
     const scripts = [...document.querySelectorAll('script')]
       .map((script) => script.textContent).join('\n');
     const specs = [...document.querySelectorAll('table tr')]
@@ -113,11 +115,11 @@ async function readPage(page: Page): Promise<RawPage> {
         name: text(row.querySelector('th[scope="row"]')),
         value: text(row.querySelector('td')),
       }))
-      .filter((spec): spec is Spec => spec.name !== null);
+      .filter((spec) => spec.name !== null);
 
     return {
       url: location.href,
-      itemId: document.querySelector<HTMLInputElement>('input[name="product_id"]')?.value ||
+      itemId: document.querySelector('input[name="product_id"]')?.value ||
         scripts.match(/product_id=(\d+)/)?.[1] || null,
       title: text(document.querySelector('h2.crop-text-2.title')),
       pageTitle: document.title,
@@ -133,7 +135,7 @@ async function readPage(page: Page): Promise<RawPage> {
       specs,
       rating: text(document.querySelector('#average-rating-info')),
     };
-  });
+  })()`) as Promise<RawPage>;
 }
 
 function normalize(raw: RawPage): Product {
@@ -167,8 +169,8 @@ function normalize(raw: RawPage): Product {
   };
 }
 
-async function main(): Promise<void> {
-  const browser = await chromium.launch({ headless: true });
+async function scrape(headless: boolean): Promise<Product> {
+  const browser = await chromium.launch({ headless });
   try {
     const page = await browser.newPage();
     const response = await page.goto(PRODUCT_URL, {
@@ -185,13 +187,25 @@ async function main(): Promise<void> {
     if (!product.title || !product.image_url || !product.specs.length) {
       throw new Error('The product page did not contain the expected product details.');
     }
-
-    await fs.mkdir(path.dirname(OUTPUT_FILE), { recursive: true });
-    await fs.writeFile(OUTPUT_FILE, `${JSON.stringify(product, null, 2)}\n`);
-    console.log(`Saved ${product.title} to ${OUTPUT_FILE}`);
+    return product;
   } finally {
     await browser.close();
   }
+}
+
+async function main(): Promise<void> {
+  let product: Product;
+  try {
+    product = await scrape(true);
+  } catch (error) {
+    if (!(error instanceof Error) || !error.message.includes('HTTP 403')) throw error;
+    console.warn('MSI blocked headless Chromium (HTTP 403); retrying in a visible browser.');
+    product = await scrape(false);
+  }
+
+  await fs.mkdir(path.dirname(OUTPUT_FILE), { recursive: true });
+  await fs.writeFile(OUTPUT_FILE, `${JSON.stringify(product, null, 2)}\n`);
+  console.log(`Saved ${product.title} to ${OUTPUT_FILE}`);
 }
 
 main().catch((error: unknown) => {
