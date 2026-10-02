@@ -4,7 +4,7 @@ Scrapes the specified MSI US Store motherboard page and writes a normalized JSON
 
 ## Run
 
-Requires Node.js 20 or newer. The scraper is written in TypeScript and runs through `tsx`.
+Requires Node.js 20 or newer. The scraper is written in TypeScript; `npm run scrape` compiles it and runs the generated JavaScript.
 
 ```bash
 npm install

@@ -11,16 +11,13 @@ import {
   SUCCESS_MESSAGE,
 } from './constants.js';
 import { ERROR_MESSAGES, formatScrapeError } from './errors.js';
-import type { Product, RawPage } from './types.js';
+import type { CategoryEntry, Product, RawPage, Spec } from './types.js';
 import { browserIdentity, normalize } from './utils.js';
 
 async function readPage(page: Page): Promise<RawPage> {
-  // Pass browser-side code as a string so tsx does not inject Node-side helpers
-  // (such as __name) into Playwright's isolated page context.
-  return page.evaluate(String.raw`(() => {
-    const selectors = ${JSON.stringify(SELECTORS)};
-    const ratingPattern = ${RATING_PATTERN};
-    const text = (element) => {
+  return page.evaluate(({ selectors, ratingSource }): RawPage => {
+    const ratingPattern = new RegExp(ratingSource);
+    const text = (element: Element | null | undefined): string | null => {
       const content = element instanceof HTMLElement ? element.innerText : element?.textContent;
       return content?.replace(/\s+/g, ' ').trim() || null;
     };
@@ -31,7 +28,7 @@ async function readPage(page: Page): Promise<RawPage> {
         name: text(item),
         url: item.querySelector('a')?.href || null,
       }))
-      .filter((item) => item.name !== null);
+      .filter((item): item is CategoryEntry => item.name !== null);
     const scripts = [...document.querySelectorAll(selectors.scripts)]
       .map((script) => script.textContent).join('\n');
     const specs = [...document.querySelectorAll(selectors.specRows)]
@@ -40,12 +37,12 @@ async function readPage(page: Page): Promise<RawPage> {
         name: text(row.querySelector(selectors.specName)),
         value: text(row.querySelector(selectors.specValue)),
       }))
-      .filter((spec) => spec.name !== null);
+      .filter((spec): spec is Spec => spec.name !== null);
     const title = document.querySelector(selectors.title);
 
     return {
       url: location.href,
-      itemId: document.querySelector(selectors.productId)?.value ||
+      itemId: document.querySelector<HTMLInputElement>(selectors.productId)?.value ||
         scripts.match(/product_id=(\d+)/)?.[1] || null,
       title: text(title),
       pageTitle: document.title,
@@ -60,9 +57,9 @@ async function readPage(page: Page): Promise<RawPage> {
         .map((image) => image.getAttribute('popup_img') || image.getAttribute('src')),
       specs,
       rating: [...document.querySelectorAll(selectors.rating)]
-        .map(text).find((value) => value && ratingPattern.test(value)) || null,
+        .map(text).find((value) => value !== null && ratingPattern.test(value)) ?? null,
     };
-  })()`) as Promise<RawPage>;
+  }, { selectors: SELECTORS, ratingSource: RATING_PATTERN.source });
 }
 
 async function scrape(): Promise<Product> {
