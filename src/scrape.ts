@@ -169,10 +169,19 @@ function normalize(raw: RawPage): Product {
   };
 }
 
-async function scrape(headless: boolean): Promise<Product> {
-  const browser = await chromium.launch({ headless });
+async function scrape(): Promise<Product> {
+  const browser = await chromium.launch({ headless: true });
   try {
-    const page = await browser.newPage();
+    const chromeMajor = browser.version().split('.')[0];
+    const os = process.platform === 'darwin' ? 'Macintosh; Intel Mac OS X 10_15_7' :
+      process.platform === 'win32' ? 'Windows NT 10.0; Win64; x64' : 'X11; Linux x86_64';
+    const context = await browser.newContext({
+      userAgent: `Mozilla/5.0 (${os}) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/${chromeMajor}.0.0.0 Safari/537.36`,
+      extraHTTPHeaders: {
+        'sec-ch-ua': `"Chromium";v="${chromeMajor}", "Not=A?Brand";v="99"`,
+      },
+    });
+    const page = await context.newPage();
     const response = await page.goto(PRODUCT_URL, {
       waitUntil: 'domcontentloaded',
       timeout: 45000,
@@ -194,15 +203,7 @@ async function scrape(headless: boolean): Promise<Product> {
 }
 
 async function main(): Promise<void> {
-  let product: Product;
-  try {
-    product = await scrape(true);
-  } catch (error) {
-    if (!(error instanceof Error) || !error.message.includes('HTTP 403')) throw error;
-    console.warn('MSI blocked headless Chromium (HTTP 403); retrying in a visible browser.');
-    product = await scrape(false);
-  }
-
+  const product = await scrape();
   await fs.mkdir(path.dirname(OUTPUT_FILE), { recursive: true });
   await fs.writeFile(OUTPUT_FILE, `${JSON.stringify(product, null, 2)}\n`);
   console.log(`Saved ${product.title} to ${OUTPUT_FILE}`);
