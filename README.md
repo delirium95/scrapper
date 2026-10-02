@@ -16,6 +16,8 @@ Run `npm run typecheck` to check the TypeScript types without generating files.
 
 The output file is overwritten on each run. The scraper runs in headless Playwright Chromium and reads product data from the live page. If a field is absent, it writes `null` (or an empty array for list fields).
 
+`src/scrape.ts` runs the browser and extracts the page. Selectors and fixed values are in `src/constants.ts`, errors in `src/errors.ts`, types in `src/types.ts`, and normalization helpers in `src/utils.ts`.
+
 ## Extraction approach
 
 - Breadcrumbs and product text come from the product page's visible DOM.
