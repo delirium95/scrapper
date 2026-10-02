@@ -1,0 +1,19 @@
+{
+  "name": "msi-product-scraper",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "description": "Scrape one MSI product page into a normalized JSON file",
+  "scripts": {
+    "scrape": "tsx src/scrape.ts",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "playwright": "1.62.1"
+  },
+  "devDependencies": {
+    "@types/node": "^26.6.4",
+    "tsx": "^4.23.15",
+    "typescript": "^7.0.2"
+  }
+}
